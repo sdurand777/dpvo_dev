@@ -19,5 +19,6 @@ services:
       - /home/ivm/dpvo_dev/:/home/smith/dpvo_dev/
       - /home/ivm/config_neovim/:/home/smith/.config/nvim/
       - /home/ivm/test_pipe/:/home/smith/test_pipe/
+      - /home/ivm/data_usine/:/home/smith/data_usine/
     tty: true
 
