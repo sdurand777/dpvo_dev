@@ -32,8 +32,8 @@ setup(
         CUDAExtension('cuda_ba',
             sources=['dpvo/fastba/ba.cpp', 'dpvo/fastba/ba_cuda.cu'],
             extra_compile_args={
-                'cxx': ['-O3'],
-                'nvcc': ['-O3',
+                'cxx': ['-O0', '-g'],
+                'nvcc': ['-O0', '-g', '-G',
                     '-gencode=arch=compute_60,code=sm_60',
                     '-gencode=arch=compute_61,code=sm_61',
                     '-gencode=arch=compute_70,code=sm_70',

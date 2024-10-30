@@ -534,39 +534,42 @@ class DPVO:
                 #import pdb; pdb.set_trace()
 
                 # recuperation des data pour faire tourner directement en cuda
-#                 my_values = {
-#                     'poses': self.poses.to('cpu'),
-#                     'patches': self.patches.to('cpu'),
-#                     'intrinsics': self.intrinsics[0].to('cpu'),
-#                     'target': target.to('cpu'),
-#                     'weight': weight.to('cpu'),
-#                     'lmbda': lmbda.to('cpu'),
-#                     't0': t0,
-#                     'n': self.n,
-#                     'ii': self.ii.to('cpu'),
-#                     'jj': self.jj.to('cpu'),
-#                     'kk': self.kk.to('cpu'),
-#                 }
-#
-#                 class Container(torch.nn.Module):
-#                     def __init__(self, my_values):
-#                         super().__init__()
-#                         for key in my_values:
-#                             setattr(self, key, my_values[key])
-#
-# # Save arbitrary values supported by TorchScript
-# # https://pytorch.org/docs/master/jit.html#supported-type
-#                 container = torch.jit.script(Container(my_values))
-#                 container.save("container.pt")
+                my_values = {
+                    'poses': self.poses.to('cpu'),
+                    'patches': self.patches.to('cpu'),
+                    'intrinsics': self.intrinsics[0].to('cpu'),
+                    'target': target.to('cpu'),
+                    'weight': weight.to('cpu'),
+                    'lmbda': lmbda.to('cpu'),
+                    't0': t0,
+                    'n': self.n,
+                    'ii': self.ii.to('cpu'),
+                    'jj': self.jj.to('cpu'),
+                    'kk': self.kk.to('cpu'),
+                }
+
+                class Container(torch.nn.Module):
+                    def __init__(self, my_values):
+                        super().__init__()
+                        for key in my_values:
+                            setattr(self, key, my_values[key])
+
+# Save arbitrary values supported by TorchScript
+# https://pytorch.org/docs/master/jit.html#supported-type
+                container = torch.jit.script(Container(my_values))
+                container.save("container_test_stereo_dpvo.pt")
 
                 import pdb; pdb.set_trace()
 
-                if torch.sum(self.poses[0,1,:]) != 1:
-                    fastba.BA(self.poses, self.patches, self.intrinsics, 
-                        target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
-                else:
-                    fastba.BA(self.poses, self.patches, self.intrinsics, 
-                        target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2)
+                fastba.BA(self.poses, self.patches, self.intrinsics, 
+                    target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
+
+                # if torch.sum(self.poses[0,1,:]) != 1:
+                #     fastba.BA(self.poses, self.patches, self.intrinsics, 
+                #         target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
+                # else:
+                #     fastba.BA(self.poses, self.patches, self.intrinsics, 
+                #         target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2)
 
                 #import pdb; pdb.set_trace()
 
@@ -710,6 +713,12 @@ class DPVO:
         if self.is_initialized:
             s = torch.median(self.patches_[self.n-3:self.n,:,2])
             patches[:,:,2] = s
+
+        # #patches[:,:,2] = torch.rand_like(patches[:,:,2,0,0,None,None])
+        # if self.is_initialized:
+        #     s = torch.median(patches[:,:,2])
+        #     print("PRONFONDEUR MEDIANE INIT : ", s)
+        #     patches[:,:,2] = s
 
         self.patches_[self.n] = patches
 

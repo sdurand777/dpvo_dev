@@ -355,10 +355,20 @@ __global__ void reprojection_residuals_and_hessian(
             // residual for x coord
             const float r = target[n][0] - x1;
             // confidence weight from raft for this target
-            const float w = mask * weight[n][0];
+            float w = mask * weight[n][0];
 
             // jacobian for depth
             float Jz = fx * (tij[0] * d - tij[2] * (X * d2));
+
+            // build bloc C depth depth directly
+            atomicAdd(&C[k], w * Jz * Jz);
+
+            // build vector rhs for depth directly
+            atomicAdd(&u[k], w *  r * Jz);
+
+            // stereo case confidence for pose info
+            if (ix == jx) w = 0;
+
             // jacobian for pose
             float Ji[6], Jj[6] = {fx*W*d, 0, fx*-X*W*d2, fx*-X*Y*d2, fx*(1+X*X*d2), fx*-Y*d};
 
@@ -395,11 +405,6 @@ __global__ void reprojection_residuals_and_hessian(
                     atomicAdd(&v[6*jx+i],  w * r * Jj[i]);
             }
 
-            // build bloc C depth depth directly
-            atomicAdd(&C[k], w * Jz * Jz);
-
-            // build vector rhs for depth directly
-            atomicAdd(&u[k], w *  r * Jz);
         }
 
         // y coord
@@ -407,10 +412,19 @@ __global__ void reprojection_residuals_and_hessian(
             // residual for y
             const float r = target[n][1] - y1;
             // ocnfidence weight
-            const float w = mask * weight[n][1];
+            float w = mask * weight[n][1];
 
             // jacobian for depth
             float Jz = fy * (tij[1] * d - tij[2] * (Y * d2));
+
+            // build C bloc depth depth
+            atomicAdd(&C[k], w * Jz * Jz);
+            // build rhs depth vector
+            atomicAdd(&u[k], w *  r * Jz);
+
+            // stereo case confidence for pose info
+            if (ix == jx) w = 0;
+
             // jacobian for poses
             float Ji[6], Jj[6] = {0, fy*W*d, fy*-Y*W*d2, fy*(-1-Y*Y*d2), fy*(X*Y*d2), fy*X*d};
 
@@ -447,10 +461,6 @@ __global__ void reprojection_residuals_and_hessian(
                     atomicAdd(&v[6*jx+i],  w * r * Jj[i]);
             }
 
-            // build C bloc depth depth
-            atomicAdd(&C[k], w * Jz * Jz);
-            // build rhs depth vector
-            atomicAdd(&u[k], w *  r * Jz);
         }
     }
 }

@@ -1,1 +1,1 @@
-python dev_stereo.py --imagedir=../data_usine/ --calib=calib/iphone.txt --plot --viz
+python dev_stereo.py --imagedir=../data_usine/ --calib=calib/iphone.txt
