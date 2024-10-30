@@ -47,20 +47,20 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False
         
     print("number_of_images : ", number_of_images)
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     while 1:
 
         (t, images, intrinsics) = queue.get()
 
-        print("image t : ", t)
-        import pdb; pdb.set_trace()
+        #print("image t : ", t)
+        #import pdb; pdb.set_trace()
 
         if t < 0: 
             import pdb; pdb.set_trace()
             break
 
-        if t >= number_of_images-5:
+        if t >= 50:
             import pdb; pdb.set_trace()
             break
 
@@ -103,7 +103,7 @@ def run(cfg, network, imagedir, calib, stride=1, skip=0, viz=False, timeit=False
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--network', type=str, default='/home/smith/test_dpvo/dpvo.pth')
+    parser.add_argument('--network', type=str, default='dpvo.pth')
     parser.add_argument('--imagedir', type=str)
     parser.add_argument('--calib', type=str)
     parser.add_argument('--stride', type=int, default=2)

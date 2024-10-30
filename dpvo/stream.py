@@ -103,6 +103,9 @@ def image_stream_stereo(queue, imagedir, calib, stride, skip=0):
     image_list_r = sorted(glob.glob(os.path.join(imagedir, 'image_right', '*.png')))[::stride]
 
 
+    images = torch.zeros(image_size)
+    intrinsics = torch.zeros(4)
+
     for t, (imfile_l, imfile_r) in enumerate(zip(image_list_l,image_list_r)):
 
         images_left = imfile_l
@@ -113,7 +116,7 @@ def image_stream_stereo(queue, imagedir, calib, stride, skip=0):
 
         images = [cv2.imread(images_left)]
 
-        tmp = torch.from_numpy(np.stack(images, 0))
+        #tmp = torch.from_numpy(np.stack(images, 0))
 
         images += [cv2.imread(images_right)]
 
@@ -127,27 +130,33 @@ def image_stream_stereo(queue, imagedir, calib, stride, skip=0):
         intrinsics[2] *= image_size[1] / wd0
         intrinsics[3] *= image_size[0] / ht0
 
-        # Vérifier si la queue est pleine avant de mettre des éléments
-        if not queue.full():
-            queue.put((t, images.cpu(), intrinsics.cpu()))
-        else:
-            print("La queue est pleine, attente pour la mise en file.")
-            while queue.full():
-                pass  # Attendre que la queue ne soit plus pleine
+        queue.put((t, images.cpu(), intrinsics.cpu()))
 
-    # Envoyer le signal de fin de traitement
-    try:
-        if not queue.full():
-            queue.put((-1, images.cpu(), intrinsics.cpu()))
-        else:
-            print("La queue est pleine, attente pour l'envoi du signal de fin.")
-            while queue.full():
-                pass  # Attendre que la queue ne soit plus pleine
-            queue.put((-1, images.cpu(), intrinsics.cpu()))
-    except Exception as e:
-        print(f"Erreur lors de l'envoi du signal de fin: {e}")
+    queue.put((-1, images.cpu(), intrinsics.cpu()))
 
-    print("Processus image_stream terminé.")
+
+
+    #     # Vérifier si la queue est pleine avant de mettre des éléments
+    #     if not queue.full():
+    #         queue.put((t, images.cpu(), intrinsics.cpu()))
+    #     else:
+    #         print("La queue est pleine, attente pour la mise en file.")
+    #         while queue.full():
+    #             pass  # Attendre que la queue ne soit plus pleine
+    #
+    # # Envoyer le signal de fin de traitement
+    # try:
+    #     if not queue.full():
+    #         queue.put((-1, images.cpu(), intrinsics.cpu()))
+    #     else:
+    #         print("La queue est pleine, attente pour l'envoi du signal de fin.")
+    #         while queue.full():
+    #             pass  # Attendre que la queue ne soit plus pleine
+    #         queue.put((-1, images.cpu(), intrinsics.cpu()))
+    # except Exception as e:
+    #     print(f"Erreur lors de l'envoi du signal de fin: {e}")
+    #
+    # print("Processus image_stream terminé.")
 
 
 

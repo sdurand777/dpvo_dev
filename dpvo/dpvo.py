@@ -505,13 +505,13 @@ class DPVO:
             # calculer toutes les reprojection pour le graph
             # coords shape [1, 6144, 2, 3, 3]
             #import pdb; pdb.set_trace()
-            #coords = self.reproject(stereo=self.stereo)
-            coords = self.reproject()
+            coords = self.reproject(stereo=self.stereo)
+            #coords = self.reproject()
 
             with autocast(enabled=True):
                 # gestion du cas stereo
-                #corr = self.corr(coords, stereo=self.stereo)
-                corr = self.corr(coords)
+                corr = self.corr(coords, stereo=self.stereo)
+                #corr = self.corr(coords)
 
                 # uniquement context de gauche pour rappel
                 ctx = self.imap[:,self.kk % (self.M * self.mem)]
@@ -559,12 +559,14 @@ class DPVO:
 #                 container = torch.jit.script(Container(my_values))
 #                 container.save("container.pt")
 
-                #import pdb; pdb.set_trace()
+                import pdb; pdb.set_trace()
 
-                # fastba.BA(self.poses, self.patches, self.intrinsics, 
-                #     target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
-                fastba.BA(self.poses, self.patches, self.intrinsics, 
-                    target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2)
+                if torch.sum(self.poses[0,1,:]) != 1:
+                    fastba.BA(self.poses, self.patches, self.intrinsics, 
+                        target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
+                else:
+                    fastba.BA(self.poses, self.patches, self.intrinsics, 
+                        target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2)
 
                 #import pdb; pdb.set_trace()
 
