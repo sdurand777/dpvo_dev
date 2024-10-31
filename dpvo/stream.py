@@ -233,6 +233,8 @@ def image_stream_stereo_ivm(queue, imagedir, calib, stride, skip=0):
         images = torch.from_numpy(np.stack(images, 0))
 
         images = images.permute(0, 3, 1, 2)
+
+        image_size = [528, 960]
         images = F.interpolate(images, image_size, mode="bilinear", align_corners=False)
         intrinsics = torch.as_tensor(intrinsics_vec)
         intrinsics[0] *= image_size[1] / wd0

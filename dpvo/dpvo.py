@@ -11,6 +11,8 @@ from .net import VONet
 from .utils import *
 from . import projective_ops as pops
 
+from PIL import Image
+
 DEBUG = False
 
 # import fastba
@@ -77,6 +79,11 @@ class DPVO:
 
         # dummy image for visualization
         self.image_ = torch.zeros(self.ht, self.wd, 3, dtype=torch.uint8, device="cpu")
+
+        # store images for reprojection visualizatiojn
+        self.image_left = torch.zeros(self.N, int(self.ht/4), int(self.wd/4), 3, dtype=torch.uint8, device="cpu")
+        self.image_right = torch.zeros(self.N, int(self.ht/4), int(self.wd/4), 3, dtype=torch.uint8, device="cpu")
+
 
         self.tstamps_ = torch.zeros(self.N, dtype=torch.long, device="cuda")
         self.poses_ = torch.zeros(self.N, 7, dtype=torch.float, device="cuda")
@@ -494,6 +501,107 @@ class DPVO:
         self.remove_factors(to_remove)
 
 
+    def visualization_projection(self, indice_i = 0, indice_j = 0, coords_projection = None, stereo = False):
+        # recuperation des patches origin
+        coords_origin = self.patches[0,96*(indice_i):96*(indice_i+1),:2,1,1]
+
+        image_origin = self.image_left[indice_i]
+
+        width = image_origin.shape[1]
+        height = image_origin.shape[0]
+
+        image_origin[coords_origin[:,1].long(), coords_origin[:,0].long()] = torch.tensor([255, 0, 0], dtype=image_origin.dtype)
+        # origin pil
+        image_origin_pil = Image.fromarray(image_origin.numpy().astype('uint8'))
+
+        # reprojection sur stereo
+        if len(coords_projection.shape) > 3:
+            coords_projection =  coords_projection[0,:,:,1,1]
+        else:
+            coords_projection =  coords_projection[0]
+
+        if stereo:
+            # masque ii
+            mask_ii = self.ii == indice_i
+            # masque jj
+            mask_jj = self.jj == indice_i
+            stereo_mask = mask_ii & mask_jj
+            indices = torch.nonzero(stereo_mask, as_tuple=True)
+
+            coords_stereo =  coords_projection[indices]
+
+# Define the size limits
+
+# Create a mask for valid coordinates
+            valid_mask = (coords_stereo[:, 0] >= 0) & (coords_stereo[:, 0] < width) & (coords_stereo[:, 1] >= 0) & (coords_stereo[:, 1] < height)
+
+# Filter the coordinates using the mask
+            coords_stereo = coords_stereo[valid_mask]
+
+
+            image_stereo = self.image_right[indice_i]
+            image_stereo[coords_stereo[:,1].long(), coords_stereo[:,0].long()] = torch.tensor([0, 255, 0], dtype=image_stereo.dtype)
+            # origin pil
+            image_stereo_pil = Image.fromarray(image_stereo.numpy().astype('uint8'))
+
+        # reprojection sur image j
+        # masque ii
+        mask_ii = self.ii == indice_i
+        # masque jj
+        mask_jj = self.jj == indice_j
+        stereo_mask = mask_ii & mask_jj
+        indices = torch.nonzero(stereo_mask, as_tuple=True)
+
+        coords_repro =  coords_projection[indices]
+
+# Create a mask for valid coordinates
+        valid_mask = (coords_repro[:, 0] >= 0) & (coords_repro[:, 0] < width) & (coords_repro[:, 1] >= 0) & (coords_repro[:, 1] < height)
+
+# Filter the coordinates using the mask
+        coords_repro = coords_repro[valid_mask]
+
+
+        image_repro = self.image_left[indice_j]
+        image_repro[coords_repro[:,1].long(), coords_repro[:,0].long()] = torch.tensor([0, 0, 255], dtype=image_repro.dtype)
+        # origin pil
+        image_repro_pil = Image.fromarray(image_repro.numpy().astype('uint8'))
+
+        # Concatenate images horizontally
+        if stereo:
+            width, height = image_origin_pil.size
+            combined_image = Image.new('RGB', (width * 3, height))
+            combined_image.paste(image_origin_pil, (0, 0))
+            combined_image.paste(image_stereo_pil, (width, 0))
+            combined_image.paste(image_repro_pil, (width * 2, 0))
+        else:
+            width, height = image_origin_pil.size
+            combined_image = Image.new('RGB', (width * 2, height))
+            combined_image.paste(image_origin_pil, (0, 0))
+            combined_image.paste(image_repro_pil, (width, 0))
+
+        # Show the combined image
+        combined_image.show()
+
+        #import pdb; pdb.set_trace()
+
+    def compute_corr(self, indice_i = 0, indice_j = 0, correlation = None, stereo = False):
+
+        # recuperation correlation des edges
+        mask_ii = self.ii == indice_i
+        # masque jj
+        mask_jj = self.jj == indice_j
+        edges_mask = mask_ii & mask_jj
+        indices = torch.nonzero(edges_mask, as_tuple=True)
+
+        corr_edges = correlation[0][indices]
+
+        corr_mean = torch.mean(corr_edges)
+
+        return corr_mean
+
+
+
+
     # main update fonction reprojection to index corr to raft to compute targets then BA to update pose and disp values based on targets
     def update(self):
 
@@ -506,12 +614,19 @@ class DPVO:
             # coords shape [1, 6144, 2, 3, 3]
             #import pdb; pdb.set_trace()
             coords = self.reproject(stereo=self.stereo)
+
+            self.visualization_projection(0,1,coords, stereo=self.stereo)
+
+
             #coords = self.reproject()
 
             with autocast(enabled=True):
                 # gestion du cas stereo
                 corr = self.corr(coords, stereo=self.stereo)
                 #corr = self.corr(coords)
+                
+                import pdb; pdb.set_trace()
+
 
                 # uniquement context de gauche pour rappel
                 ctx = self.imap[:,self.kk % (self.M * self.mem)]
@@ -558,8 +673,6 @@ class DPVO:
 # https://pytorch.org/docs/master/jit.html#supported-type
                 container = torch.jit.script(Container(my_values))
                 container.save("container_test_stereo_dpvo.pt")
-
-                import pdb; pdb.set_trace()
 
                 fastba.BA(self.poses, self.patches, self.intrinsics, 
                     target, weight, lmbda, self.ii, self.jj, self.kk, t0, self.n, 2, self.stereo)
@@ -635,17 +748,24 @@ class DPVO:
         if self.viewer is not None:
             if self.stereo:
                 self.viewer.update_image(image[0])
+                # store images for reprojection
             else:
                 self.viewer.update_image(image)
+
+
 
 
         # post traitement image
         if self.stereo:
             # normalisation image avant patchifier
+            self.image_left[self.n] = image[0].permute(1,2,0)[::4,::4,:]
+            self.image_right[self.n] = image[1].permute(1,2,0)[::4,::4,:]
             image = 2 * (image[None,None] / 255.0) - 0.5
         else:
             # normalisation image avant patchifier
+            self.image_left[self.n] = image[0].permute(1,2,0)[::4,::4,:]
             image = 2 * (image[None] / 255.0) - 0.5
+
 
         # recuperer disp pour patchify
         with autocast(enabled=self.cfg.MIXED_PRECISION):
@@ -764,6 +884,8 @@ class DPVO:
             # 12 iterations update
             for itr in range(12):
                 self.update()
+
+            import pdb; pdb.set_trace()
         
         # classic update
         elif self.is_initialized:
