@@ -101,6 +101,7 @@ class Update(nn.Module):
         mask_ix = (ix >= 0).float().reshape(1, -1, 1)
         mask_jx = (jx >= 0).float().reshape(1, -1, 1)
 
+        # conv net for temporal context
         net = net + self.c1(mask_ix * net[:,ix])
         net = net + self.c2(mask_jx * net[:,jx])
 
@@ -193,12 +194,47 @@ class Patchifier(nn.Module):
         b, n, c, h, w = fmap.shape
         P = self.patch_size
 
-        # bias patch selection towards regions with high gradient
-        x = torch.randint(1, w-1, size=[n, patches_per_image], device="cuda")
-        y = torch.randint(1, h-1, size=[n, patches_per_image], device="cuda")
 
-        coords = torch.stack([x, y], dim=-1).float()
-            
+        # disp values
+        if disps is None:
+            disps = torch.ones(b, n, h, w, device="cuda")
+        else:
+            # grid 3, 132, 240 pour recuperer les indices pour els patches
+            disps = disps.unsqueeze(0).unsqueeze(0)
+# Diviser les dimensions par 4
+            new_height = disps.shape[2] // 4
+            new_width = disps.shape[3] // 4
+# Redimensionner l'image en divisant les dimensions par 4
+            disps_resized = F.interpolate(disps, size=(new_height, new_width), mode='bilinear', align_corners=False)
+            disps = disps_resized.to(fmap.device)
+
+
+        depth = disps[0][0]
+# Étape 1 : Créer le masque pour conserver les valeurs entre 0.8 et 1.8
+        mask = (depth >= 0.5) & (depth <= 3.0)
+
+# Étape 2 : Récupérer les indices des valeurs qui respectent ce masque
+        indices = mask.nonzero(as_tuple=False)  # Renvoie un tensor Nx2 avec les indices (x, y)
+
+        coords = indices[torch.randperm(indices.size(0))[:patches_per_image]][:,[1,0]].float().unsqueeze(0)
+
+
+        #import pdb; pdb.set_trace()
+
+        # on prend la disparite on inverse la depth
+        disps = 1/disps
+
+        # # bias patch selection towards regions with high gradient
+        # x = torch.randint(1, w-1, size=[n, patches_per_image], device="cuda")
+        # y = torch.randint(1, h-1, size=[n, patches_per_image], device="cuda")
+        #
+        # coords = torch.stack([x, y], dim=-1).float()
+        #     
+        #
+        # import pdb; pdb.set_trace()
+
+
+
         gmap = altcorr.patchify(fmap[0], coords, P//2).view(b, -1, 128, P, P)
 
         imap = altcorr.patchify(imap[0], coords, 0).view(b, -1, DIM, 1, 1)
@@ -217,18 +253,6 @@ class Patchifier(nn.Module):
 
 
         #import pdb; pdb.set_trace()
-
-        if disps is None:
-            disps = torch.ones(b, n, h, w, device="cuda")
-        else:
-            # grid 3, 132, 240 pour recuperer les indices pour els patches
-            disps = disps.unsqueeze(0).unsqueeze(0)
-# Diviser les dimensions par 4
-            new_height = disps.shape[2] // 4
-            new_width = disps.shape[3] // 4
-# Redimensionner l'image en divisant les dimensions par 4
-            disps_resized = F.interpolate(disps, size=(new_height, new_width), mode='bilinear', align_corners=False)
-            disps = disps_resized.to(fmap.device)
 
 
         # else:

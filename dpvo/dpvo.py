@@ -151,6 +151,8 @@ class DPVO:
                 if "update.lmbda" not in k:
                     new_state_dict[k.replace('module.', '')] = v
 
+
+
             self.network = VONet()
             self.network.load_state_dict(new_state_dict)
             
@@ -158,6 +160,16 @@ class DPVO:
             print("Clés du state_dict chargées :")
             for k in new_state_dict.keys():
                 print(k)
+
+
+            print("cles et poids des reseaux d et w")
+            for k, v in new_state_dict.items():
+                # Vérifier si la clé est celle que nous voulons
+                if k in ["update.d.1.weight", "update.d.1.bias", "update.w.1.weight", "update.w.1.bias"]:
+                    print(f"{k}:\n{v}\n")
+
+            #import pdb; pdb.set_trace()
+
 
             if DEBUG: import pdb; pdb.set_trace()
 
@@ -599,6 +611,20 @@ class DPVO:
 
         return corr_mean
 
+    def compute_weight_or_flow(self, indice_i = 0, indice_j = 0, weight_or_flow = None, stereo = False):
+
+        # recuperation correlation des edges
+        mask_ii = self.ii == indice_i
+        # masque jj
+        mask_jj = self.jj == indice_j
+        edges_mask = mask_ii & mask_jj
+        indices = torch.nonzero(edges_mask, as_tuple=True)
+
+        corr_edges = weight_or_flow[0][indices]
+
+        corr_mean = torch.mean(corr_edges)
+
+        return corr_mean
 
 
 
@@ -615,8 +641,8 @@ class DPVO:
             #import pdb; pdb.set_trace()
             coords = self.reproject(stereo=self.stereo)
 
-            self.visualization_projection(0,1,coords, stereo=self.stereo)
-
+            # visualize reprojection
+            #self.visualization_projection(0,1,coords, stereo=self.stereo)
 
             #coords = self.reproject()
 
@@ -625,7 +651,7 @@ class DPVO:
                 corr = self.corr(coords, stereo=self.stereo)
                 #corr = self.corr(coords)
                 
-                import pdb; pdb.set_trace()
+                #import pdb; pdb.set_trace()
 
 
                 # uniquement context de gauche pour rappel
@@ -633,6 +659,7 @@ class DPVO:
                 self.net, (delta, weight, _) = \
                     self.network.update(self.net, ctx, corr, None, self.ii, self.jj, self.kk)
 
+            
             lmbda = torch.as_tensor([1e-4], device="cuda")
             weight = weight.float()
             # on recupere le centre de coords et on applique le terme correctif delta
@@ -696,6 +723,7 @@ class DPVO:
             # points [768,3]
             points = (points[...,1,1,:3] / points[...,1,1,3:]).reshape(-1, 3)
             self.points_[:len(points)] = points[:]
+
             #import pdb; pdb.set_trace()
 
                 
@@ -829,16 +857,11 @@ class DPVO:
         # Utiliser la stereo pour initialiser la depth mieux et des le debut
 
         # TODO better depth initialization
-        patches[:,:,2] = torch.rand_like(patches[:,:,2,0,0,None,None])
-        if self.is_initialized:
-            s = torch.median(self.patches_[self.n-3:self.n,:,2])
-            patches[:,:,2] = s
-
-        # #patches[:,:,2] = torch.rand_like(patches[:,:,2,0,0,None,None])
+        # patches[:,:,2] = torch.rand_like(patches[:,:,2,0,0,None,None])
         # if self.is_initialized:
-        #     s = torch.median(patches[:,:,2])
-        #     print("PRONFONDEUR MEDIANE INIT : ", s)
+        #     s = torch.median(self.patches_[self.n-3:self.n,:,2])
         #     patches[:,:,2] = s
+
 
         self.patches_[self.n] = patches
 
@@ -885,7 +908,7 @@ class DPVO:
             for itr in range(12):
                 self.update()
 
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
         
         # classic update
         elif self.is_initialized:
